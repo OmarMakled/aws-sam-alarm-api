@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Example - API Gateway + Lambda + CloudWatch Alarm + Email via SNS
+
+Parameters:
+  StageName:
+    Type: String
+    Default: dev
+
+  NotificationEmail:
+    Type: String
+    Default: mail@example.com
+
+  ApiGatewayName:
+    Type: String
+    Default: api-gtw-name
+    Description: Name of the API Gateway
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Timeout: 10
+    MemorySize: 128
+
+Resources:
+  AppApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Ref ApiGatewayName
+      StageName: !Ref StageName
+      EndpointConfiguration:
+        Type: REGIONAL
+      Cors:
+        AllowMethods: "'OPTIONS,GET,POST,PUT,DELETE,PATCH'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+        AllowOrigin: "'*'"
+
+  HelloFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: HelloFunction
+      Description: Lambda returns hello
+      CodeUri: functions/
+      Handler: app.handler
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AppApiGateway
+            Path: /hello
+            Method: get
+
+  Api5xxAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: "AppApi-5xx-Alarm"
+      MetricName: "5XXError"
+      Namespace: "AWS/ApiGateway"
+      Statistic: "Sum"
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: "GreaterThanOrEqualToThreshold"
+      Dimensions:
+        - Name: "ApiName"
+          Value: !Ref ApiGatewayName
+      AlarmActions:
+        - !Ref SnsTopic
+
+  SnsTopic:
+    Type: AWS::SNS::Topic
+
+  SnsSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      Endpoint: !Ref NotificationEmail
+      TopicArn: !Ref SnsTopic
+
+Outputs:
+  ApiUrl:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${AppApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/hello"

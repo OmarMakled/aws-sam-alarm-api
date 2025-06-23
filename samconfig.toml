@@ -1,0 +1,7 @@
+version = 0.1
+[default.deploy.parameters]
+stack_name = "sam-cloudwatch-alarm-api"
+s3_bucket = "sam-cloudwatch-alarm-api"
+region = "us-east-1"
+capabilities = "CAPABILITY_IAM"
+image_repositories = []
